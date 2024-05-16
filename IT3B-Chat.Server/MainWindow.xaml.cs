@@ -15,26 +15,45 @@ namespace IT3B_Chat.Server
 {
     public partial class MainWindow : Window
     {
-        public ObservableCollection<string> Messages { get; set; }
-        public ObservableCollection<string> Connections { get; set; }
+        private ObservableCollection<string> messages = new ObservableCollection<string>();
+        private ObservableCollection<string> clientActions = new ObservableCollection<string>();
 
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = this;
+            MessagesListBox.ItemsSource = messages;
+            ClientActionsListBox.ItemsSource = clientActions;
+        }
 
-            // Inicializace kolekcí
-            Messages = new ObservableCollection<string>();
-            Connections = new ObservableCollection<string>();
+        private void AddMessage(string message)
+        {
+            messages.Add(message);
+        }
 
-            // Přidat ukázková data
-            Messages.Add("Zpráva 1 od klienta A");
-            Messages.Add("Zpráva 2 od klienta B");
-            Messages.Add("Zpráva 3 od klienta C");
+        private void AddClientAction(string action)
+        {
+            clientActions.Add(action);
+        }
 
-            Connections.Add("Klient A připojen");
-            Connections.Add("Klient B odpojen");
-            Connections.Add("Klient C připojen");
+        private void SendMessageButton_Click(object sender, RoutedEventArgs e)
+        {
+            string message = MessageTextBox.Text;
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                AddMessage(message);
+                // Zde by měla být logika pro odeslání zprávy všem klientům pomocí WebSocketu
+            }
+            MessageTextBox.Text = string.Empty;
+        }
+
+        private void HandleClientConnected(string clientName)
+        {
+            AddClientAction($"Client '{clientName}' connected.");
+        }
+
+        private void HandleClientDisconnected(string clientName)
+        {
+            AddClientAction($"Client '{clientName}' disconnected.");
         }
     }
 }
