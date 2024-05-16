@@ -9,51 +9,61 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Collections.ObjectModel;
+using System.Net.WebSockets;
+using System.Net;
 
 
 namespace IT3B_Chat.Server
 {
-    public partial class MainWindow : Window
+    public class Server
     {
-        private ObservableCollection<string> messages = new ObservableCollection<string>();
-        private ObservableCollection<string> clientActions = new ObservableCollection<string>();
+        private HttpListener listener;
 
-        public MainWindow()
+        public Server(string url)
         {
-            InitializeComponent();
-            MessagesListBox.ItemsSource = messages;
-            ClientActionsListBox.ItemsSource = clientActions;
+            listener = new HttpListener();
+            listener.Prefixes.Add(url);
         }
 
-        private void AddMessage(string message)
+        public async Task Start()
         {
-            messages.Add(message);
-        }
-
-        private void AddClientAction(string action)
-        {
-            clientActions.Add(action);
-        }
-
-        private void SendMessageButton_Click(object sender, RoutedEventArgs e)
-        {
-            string message = MessageTextBox.Text;
-            if (!string.IsNullOrWhiteSpace(message))
+            listener.Start();
+            Console.WriteLine($"Server listening at {listener.Prefixes}");
+            while (true)
             {
-                AddMessage(message);
-                // Zde by měla být logika pro odeslání zprávy všem klientům pomocí WebSocketu
+                var context = await listener.GetContextAsync();
+                if (context.Request.IsWebSocketRequest)
+                {
+                    await ProcessWebSocketRequest(context);
+                }
+                else
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.Close();
+                }
             }
-            MessageTextBox.Text = string.Empty;
         }
 
-        private void HandleClientConnected(string clientName)
+        private async Task ProcessWebSocketRequest(HttpListenerContext context)
         {
-            AddClientAction($"Client '{clientName}' connected.");
-        }
+            var webSocketContext = await context.AcceptWebSocketAsync(null);
+            var webSocket = webSocketContext.WebSocket;
 
-        private void HandleClientDisconnected(string clientName)
-        {
-            AddClientAction($"Client '{clientName}' disconnected.");
+            byte[] buffer = new byte[1024];
+            WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            while (!result.CloseStatus.HasValue)
+            {
+                string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                Console.WriteLine($"Received message: {message}");
+
+                // Echo message back to the client
+                await webSocket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
+
+                buffer = new byte[1024];
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            }
+
+            await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
         }
     }
 }
